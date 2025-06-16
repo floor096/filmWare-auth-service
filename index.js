@@ -37,11 +37,11 @@ app.get('/api/profile', authenticateToken, (req, res) => {
 app.put('/api/profile', authenticateToken, (req, res) => {
   const userId = req.user.id
   const table = req.user.tipo === 'admin' ? 'administradores' : 'clientes'
-  const { username, fullName, email } = req.body
+  const { username, nombreCompleto, email } = req.body
 
   connection.query(
     `UPDATE ${table} SET nombre_usuario = ?, nombre_completo = ?, email = ? WHERE id = ?`,
-    [username, fullName, email, userId],
+    [username, nombreCompleto, email, userId],
     (err) => {
       if (err) return res.status(500).json({ error: 'Error al actualizar perfil' })
       res.json({ message: 'Perfil actualizado correctamente' })
@@ -53,23 +53,9 @@ app.put('/api/profile', authenticateToken, (req, res) => {
 app.put('/api/profile/password', authenticateToken, async (req, res) => {
   const userId = req.user.id
   const table = req.user.tipo === 'admin' ? 'administradores' : 'clientes'
-  const { currentPassword, newPassword } = req.body
+  const { newPassword } = req.body
 
   try {
-    const [results] = await connection.promise().query(
-      `SELECT password FROM ${table} WHERE id = ?`,
-      [userId]
-    )
-
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Usuario no encontrado' })
-    }
-
-    const isValidPassword = await bcrypt.compare(currentPassword, results[0].password)
-    if (!isValidPassword) {
-      return res.status(400).json({ error: 'Contraseña actual incorrecta' })
-    }
-
     const hashedNewPassword = await bcrypt.hash(newPassword, 10)
     await connection.promise().query(
       `UPDATE ${table} SET password = ? WHERE id = ?`,

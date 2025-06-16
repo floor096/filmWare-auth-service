@@ -21,7 +21,8 @@ exports.register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
-    const table = userType === 'admin' ? 'administradores' : 'clientes'
+    const tipo = userType.toLowerCase()
+    const table = tipo === 'admin' || tipo === 'administrador' ? 'administradores' : 'clientes'
 
     const sql = `INSERT INTO ${table} (nombre_completo, email, nombre_usuario, password, tipo)
                  VALUES (?, ?, ?, ?, ?)`
