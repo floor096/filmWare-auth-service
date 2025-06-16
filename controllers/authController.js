@@ -1,4 +1,3 @@
-// ----NUEVO----
 const db = require('../config/db')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
@@ -11,17 +10,20 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'Todos los campos son obligatorios' })
     }
 
-    // Verificar si el usuario ya existe
-    const checkUserSql = 'SELECT * FROM usuarios WHERE nombre_usuario = ? OR email = ?'
-    const [existingUsers] = await db.promise().query(checkUserSql, [username, email])
+    const checkAdminSql = 'SELECT * FROM administradores WHERE nombre_usuario = ? OR email = ?'
+    const checkClientSql = 'SELECT * FROM clientes WHERE nombre_usuario = ? OR email = ?'
 
-    if (existingUsers.length > 0) {
+    const [admins] = await db.promise().query(checkAdminSql, [username, email])
+    const [clients] = await db.promise().query(checkClientSql, [username, email])
+
+    if (admins.length > 0 || clients.length > 0) {
       return res.status(409).json({ message: 'El usuario o email ya están en uso' })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
+    const table = userType === 'admin' ? 'administradores' : 'clientes'
 
-    const sql = `INSERT INTO usuarios (nombre_completo, email, nombre_usuario, password, tipo_usuario)
+    const sql = `INSERT INTO ${table} (nombre_completo, email, nombre_usuario, password, tipo)
                  VALUES (?, ?, ?, ?, ?)`
     await db.promise().query(sql, [fullName, email, username, hashedPassword, userType])
 
@@ -40,14 +42,19 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Usuario y contraseña son obligatorios' })
     }
 
-    const sql = 'SELECT * FROM usuarios WHERE nombre_usuario = ?'
-    const [results] = await db.promise().query(sql, [username])
+    const adminSql = 'SELECT * FROM administradores WHERE nombre_usuario = ?'
+    const clientSql = 'SELECT * FROM clientes WHERE nombre_usuario = ?'
 
-    if (results.length === 0) {
+    const [adminResult] = await db.promise().query(adminSql, [username])
+    const [clientResult] = await db.promise().query(clientSql, [username])
+
+    const user = adminResult[0] || clientResult[0]
+    const tipo = adminResult.length ? 'admin' : 'cliente'
+
+    if (!user) {
       return res.status(401).json({ message: 'Usuario no encontrado' })
     }
 
-    const user = results[0]
     const passwordIsValid = await bcrypt.compare(password, user.password)
 
     if (!passwordIsValid) {
@@ -55,7 +62,7 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.nombre_usuario, tipo: user.tipo_usuario },
+      { id: user.id, username: user.nombre_usuario, tipo },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     )
@@ -63,7 +70,7 @@ exports.login = async (req, res) => {
     return res.json({
       message: 'Login exitoso',
       token,
-      user: { nombre: user.nombre_usuario, tipo: user.tipo_usuario }
+      user: { nombre: user.nombre_usuario, tipo }
     })
   } catch (err) {
     console.error('Error en login:', err)
